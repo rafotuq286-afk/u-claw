@@ -178,6 +178,27 @@ jobs:
           cd u-claw-app
           npm install --registry=https://registry.npmmirror.com
 
+      # Bundle Windows Node.js runtime so main.js getNodeBin() can spawn it at runtime.
+      # Without this, the installed app fails with "spawn node ENOENT" because the user's
+      # machine has no node on PATH and resources/runtime/node-win-x64 is empty.
+      # Mirrors what setup.sh does on dev machines for the current platform.
+      - name: Download Windows Node.js runtime to bundle into installer
+        shell: pwsh
+        run: |
+          $nodeVersion = "v22.16.0"
+          $url = "https://npmmirror.com/mirrors/node/$nodeVersion/node-$nodeVersion-win-x64.zip"
+          $zip = "$env:RUNNER_TEMP\node-win-x64.zip"
+          $extract = "$env:RUNNER_TEMP\node-extract"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+          Expand-Archive -Path $zip -DestinationPath $extract -Force
+          $target = "u-claw-app\resources\runtime\node-win-x64"
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+          Copy-Item -Path "$extract\node-$nodeVersion-win-x64\*" -Destination $target -Recurse -Force
+          Remove-Item -Recurse -Force $zip, $extract
+          Write-Host "node-win-x64 contents:"
+          Get-ChildItem $target -Filter "node.exe" | Format-List Name, Length
+
       - name: Build Windows installer
         shell: cmd
         run: |
