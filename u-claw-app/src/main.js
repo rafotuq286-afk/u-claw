@@ -44,15 +44,30 @@ function getNodeBin() {
   return 'node';
 }
 
-// Portable mode: if a `portable/` directory exists next to the .app bundle, use it for data
+// Portable mode: locate a `portable/` directory created by the installer or
+// dropped by the user. Layouts differ across platforms:
+//   Mac DMG drag-install: portable/ sits next to U-Claw.app
+//                         appPath = /Apps/U-Claw.app/Contents/Resources/app → up 4 levels = /Apps
+//   Win NSIS install:     portable/ sits inside the install dir, next to U-Claw.exe
+//                         exe path = C:\U-Claw\U-Claw.exe → dirname = C:\U-Claw
 function getPortableDataPath() {
-  const appPath = app.getAppPath(); // inside .app/Contents/Resources/app
-  // Walk up to the .app's parent directory
-  const appBundleDir = path.resolve(appPath, '..', '..', '..', '..');
-  const portableDir = path.join(appBundleDir, 'portable');
-  if (fs.existsSync(portableDir)) {
-    console.log(`[${APP_NAME}] Portable mode: data in ${portableDir}`);
-    return portableDir;
+  const candidates = [];
+
+  if (process.platform === 'darwin') {
+    const appPath = app.getAppPath();
+    candidates.push(path.resolve(appPath, '..', '..', '..', '..', 'portable'));
+  } else {
+    candidates.push(path.join(path.dirname(app.getPath('exe')), 'portable'));
+    // Fallback: also check 4-up (matches the legacy Mac path resolution in case
+    // someone sets up the same layout on Windows/Linux)
+    candidates.push(path.resolve(app.getAppPath(), '..', '..', '..', '..', 'portable'));
+  }
+
+  for (const portableDir of candidates) {
+    if (fs.existsSync(portableDir)) {
+      console.log(`[${APP_NAME}] Portable mode: data in ${portableDir}`);
+      return portableDir;
+    }
   }
   return null;
 }
