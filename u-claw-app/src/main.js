@@ -24,23 +24,32 @@ const openclawPath = isDev
 
 const openclawEntry = path.join(openclawPath, 'openclaw.mjs');
 
-// Bundled Node.js runtime (OpenClaw needs standalone Node, not Electron's)
+// Bundled Node.js runtime (OpenClaw needs standalone Node, not Electron's).
+// Naming is messy across upstream:
+//   - electron-builder's ${platform} expands to 'win' / 'mac' / 'linux'
+//     and that's what extraResources packs into resources/resources/runtime/
+//   - setup.sh on Mac creates 'node-darwin-arm64' (uname-style)
+//   - process.platform is 'win32' / 'darwin' / 'linux'
+// Try every alias before falling back to bare 'node' on PATH.
 function getNodeBin() {
-  const platform = process.platform;
   const arch = process.arch;
-  if (isDev) {
-    const devNodeDir = path.join(__dirname, '..', 'resources', 'runtime', `node-${platform}-${arch}`);
-    const devNodeBin = platform === 'win32'
-      ? path.join(devNodeDir, 'node.exe')
-      : path.join(devNodeDir, 'bin', 'node');
-    if (fs.existsSync(devNodeBin)) return devNodeBin;
-    return 'node';
+  const platformAliases = process.platform === 'win32'
+    ? ['win', 'win32']
+    : process.platform === 'darwin'
+      ? ['mac', 'darwin']
+      : [process.platform];
+
+  const baseDir = isDev
+    ? path.join(__dirname, '..', 'resources', 'runtime')
+    : path.join(process.resourcesPath, 'resources', 'runtime');
+
+  for (const platformName of platformAliases) {
+    const nodeDir = path.join(baseDir, `node-${platformName}-${arch}`);
+    const nodeBin = process.platform === 'win32'
+      ? path.join(nodeDir, 'node.exe')
+      : path.join(nodeDir, 'bin', 'node');
+    if (fs.existsSync(nodeBin)) return nodeBin;
   }
-  const nodeDir = path.join(process.resourcesPath, 'resources', 'runtime', `node-${platform}-${arch}`);
-  const nodeBin = platform === 'win32'
-    ? path.join(nodeDir, 'node.exe')
-    : path.join(nodeDir, 'bin', 'node');
-  if (fs.existsSync(nodeBin)) return nodeBin;
   return 'node';
 }
 
